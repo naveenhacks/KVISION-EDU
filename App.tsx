@@ -1,5 +1,5 @@
 import React from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ContentProvider } from './context/ContentContext';
 import Layout from './components/Layout';
@@ -14,7 +14,7 @@ const App: React.FC = () => {
   return (
     <AuthProvider>
       <ContentProvider>
-        <HashRouter>
+        <BrowserRouter>
           <Layout>
             <Routes>
               <Route path="/" element={<Home />} />
@@ -26,7 +26,7 @@ const App: React.FC = () => {
             </Routes>
           </Layout>
           <Toaster position="top-right" />
-        </HashRouter>
+        </BrowserRouter>
       </ContentProvider>
     </AuthProvider>
   );

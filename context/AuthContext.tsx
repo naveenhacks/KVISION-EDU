@@ -46,7 +46,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchProfile = async (userId: string, email: string) => {
+  const fetchProfile = async (userId: string, email: string, retries = 3) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -54,9 +54,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', userId)
         .single();
 
-      if (error) {
-        console.error('Error fetching profile:', error);
-        // If profile doesn't exist yet (race condition on signup), retry or wait
+      if (error || !data) {
+        // Race Condition Handling:
+        // If Google Login just created the user, the 'handle_new_user' SQL trigger might still be running.
+        // We wait 1 second and try again.
+        if (retries > 0) {
+          console.log(`Profile not found yet, retrying... (${retries} attempts left)`);
+          setTimeout(() => fetchProfile(userId, email, retries - 1), 1000);
+          return;
+        }
+        console.error('Error fetching profile after retries:', error);
         return;
       }
 
@@ -74,7 +81,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Profile fetch error:', error);
     } finally {
-      setLoading(false);
+      // Only set loading to false if we are out of retries or succeeded
+      if (retries === 0 || user) {
+        setLoading(false);
+      }
     }
   };
 
