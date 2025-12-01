@@ -1,9 +1,30 @@
 import { GoogleGenAI } from "@google/genai";
 
-// Fix: Use process.env.API_KEY as per Google GenAI SDK guidelines.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Safe environment variable access helper
+const getEnv = (key: string): string | undefined => {
+  try {
+    if (typeof process !== 'undefined' && process.env && process.env[key]) {
+      return process.env[key];
+    }
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
+      // @ts-ignore
+      return import.meta.env[key];
+    }
+  } catch (e) {}
+  return undefined;
+};
+
+const apiKey = getEnv('API_KEY') || getEnv('VITE_GEMINI_API_KEY');
+
+// Initialize the API client
+const ai = new GoogleGenAI({ apiKey: apiKey || 'DUMMY_KEY_TO_PREVENT_CRASH' });
 
 export const generateAIResponse = async (prompt: string, contextRole: string): Promise<string> => {
+  if (!apiKey) {
+    return "AI Configuration Error: API Key is missing. Please check your environment variables.";
+  }
+
   try {
     const modelId = 'gemini-2.5-flash'; 
     const systemInstruction = `You are K-Assistant, a helpful AI integrated into KVISION Academy's management system. 
