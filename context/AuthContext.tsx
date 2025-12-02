@@ -23,29 +23,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let mounted = true;
 
-    // 1. Check active session
-    const checkSession = async () => {
+    // SAFETY NET: Force loading to false after 6 seconds max
+    // This prevents the "Blue Screen of Death" if Supabase hangs
+    const safetyTimeout = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn('Auth loading timed out - forcing app render');
+        setLoading(false);
+      }
+    }, 6000);
+
+    const initAuth = async () => {
       try {
+        // 1. Get initial session
         const { data: { session } } = await supabase.auth.getSession();
+        
         if (session?.user) {
-          await fetchProfile(session.user.id, session.user.email!);
+          await fetchProfile(session.user);
         } else {
           if (mounted) setLoading(false);
         }
       } catch (err) {
-        console.error("Session check failed", err);
+        console.error("Auth init failed", err);
         if (mounted) setLoading(false);
       }
     };
 
-    checkSession();
+    initAuth();
 
-    // 2. Listen for auth changes
+    // 2. Listen for auth changes (Google Redirects come here)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        // Only fetch if we don't have the user yet or it's a different user
-        // But to be safe for updates, we fetch always
-        await fetchProfile(session.user.id, session.user.email!);
+      if (event === 'SIGNED_IN' && session?.user) {
+        // Only fetch if we don't have a user, or if the user changed
+        await fetchProfile(session.user);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setLoading(false);
@@ -54,46 +63,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       mounted = false;
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, []);
 
-  const fetchProfile = async (userId: string, email: string, retries = 3) => {
+  const fetchProfile = async (sessionUser: any, retries = 0) => {
     try {
+      // 1. Try to get profile from DB
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', userId)
+        .eq('id', sessionUser.id)
         .single();
 
-      if (error || !data) {
-        // Race Condition Handling:
-        // If Google Login just created the user, the 'handle_new_user' SQL trigger might still be running.
-        // We wait 1 second and try again.
-        if (retries > 0) {
-          console.log(`Profile not found yet, retrying... (${retries} attempts left)`);
-          setTimeout(() => fetchProfile(userId, email, retries - 1), 1000);
-          return; // Return here to avoid setting loading=false prematurely
-        }
-        console.error('Error fetching profile after retries:', error);
-        // Retries exhausted, stop loading
+      if (data) {
+        // SUCCESS: Profile found in DB
+        setUser({
+          id: data.id,
+          name: data.name || sessionUser.email?.split('@')[0],
+          email: data.email || sessionUser.email,
+          role: data.role as UserRole,
+          avatar: data.avatar || sessionUser.user_metadata?.avatar_url,
+          phone: data.phone,
+          bio: data.bio
+        });
         setLoading(false);
         return;
       }
 
-      if (data) {
-        setUser({
-          id: data.id,
-          name: data.name || email.split('@')[0],
-          email: data.email || email,
-          role: data.role as UserRole,
-          avatar: data.avatar || `https://ui-avatars.com/api/?name=${data.name || 'User'}&background=random`,
-          phone: data.phone,
-          bio: data.bio
-        });
-        // Success - stop loading
-        setLoading(false);
+      // 2. If not found, it might be a race condition with the Trigger
+      if (retries < 3) {
+        console.log(`Profile missing, retrying... (${retries + 1}/3)`);
+        setTimeout(() => fetchProfile(sessionUser, retries + 1), 1000);
+        return;
       }
+
+      // 3. FALLBACK: If DB fetch fails after retries, use Google Session Data
+      // This ensures the user gets IN even if the DB is slow.
+      console.warn('Using Session Fallback for Profile');
+      setUser({
+        id: sessionUser.id,
+        name: sessionUser.user_metadata?.full_name || sessionUser.email?.split('@')[0] || 'User',
+        email: sessionUser.email || '',
+        role: UserRole.STUDENT, // Default to Student for safety
+        avatar: sessionUser.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${sessionUser.email}`,
+      });
+      setLoading(false);
+
     } catch (error) {
       console.error('Profile fetch error:', error);
       setLoading(false);
@@ -101,35 +118,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = async (email: string, pass: string, expectedRole: UserRole) => {
-    // 1. Authenticate with Supabase Auth
+    setLoading(true);
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password: pass,
     });
     
-    if (error) throw error;
+    if (error) {
+      setLoading(false);
+      throw error;
+    }
 
-    // 2. Check if the user has the correct role in the database
     if (data.user) {
-      const { data: profile, error: profileError } = await supabase
+      // Check role strictly for manual logins
+      const { data: profile } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', data.user.id)
         .single();
 
-      if (profileError) throw profileError;
-
-      // STRICT ROLE ENFORCEMENT
-      // If I try to login as Admin but my DB role is Student -> Block access
-      if (profile.role !== expectedRole) {
-        await supabase.auth.signOut(); // Log them out immediately
+      if (profile && profile.role !== expectedRole) {
+        await supabase.auth.signOut();
+        setLoading(false);
         throw new Error(`Access Denied: You are not authorized as a ${expectedRole}`);
       }
+      
+      // Let the onAuthStateChange handle the profile fetch
     }
   };
 
   const signUp = async (email: string, pass: string, name: string) => {
-    const { data, error } = await supabase.auth.signUp({
+    setLoading(true);
+    const { error } = await supabase.auth.signUp({
       email,
       password: pass,
       options: {
@@ -138,20 +158,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     });
-    if (error) throw error;
-    
-    // Note: The 'handle_new_user' trigger in Supabase SQL will automatically 
-    // create the profile row with role = 'STUDENT'.
+    if (error) {
+      setLoading(false);
+      throw error;
+    }
+    // Auth state change will handle the rest
   };
 
   const loginWithGoogle = async () => {
+    setLoading(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: window.location.origin,
       }
     });
-    if (error) throw error;
+    if (error) {
+      setLoading(false);
+      throw error;
+    }
   };
 
   const logout = async () => {
@@ -185,6 +210,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <AuthContext.Provider value={{ user, login, signUp, loginWithGoogle, logout, updateProfile, isAuthenticated: !!user, loading }}>
       {!loading && children}
+      {loading && (
+        <div className="fixed inset-0 bg-[#030014] flex flex-col items-center justify-center z-50">
+           <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+           <p className="text-secondary mt-4 font-mono text-sm animate-pulse">Establishing Secure Connection...</p>
+        </div>
+      )}
     </AuthContext.Provider>
   );
 };
