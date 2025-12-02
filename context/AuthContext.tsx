@@ -21,13 +21,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
     // 1. Check active session
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await fetchProfile(session.user.id, session.user.email!);
-      } else {
-        setLoading(false);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          await fetchProfile(session.user.id, session.user.email!);
+        } else {
+          if (mounted) setLoading(false);
+        }
+      } catch (err) {
+        console.error("Session check failed", err);
+        if (mounted) setLoading(false);
       }
     };
 
@@ -36,6 +43,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 2. Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
+        // Only fetch if we don't have the user yet or it's a different user
+        // But to be safe for updates, we fetch always
         await fetchProfile(session.user.id, session.user.email!);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
@@ -43,7 +52,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchProfile = async (userId: string, email: string, retries = 3) => {
@@ -61,9 +73,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (retries > 0) {
           console.log(`Profile not found yet, retrying... (${retries} attempts left)`);
           setTimeout(() => fetchProfile(userId, email, retries - 1), 1000);
-          return;
+          return; // Return here to avoid setting loading=false prematurely
         }
         console.error('Error fetching profile after retries:', error);
+        // Retries exhausted, stop loading
+        setLoading(false);
         return;
       }
 
@@ -77,14 +91,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           phone: data.phone,
           bio: data.bio
         });
+        // Success - stop loading
+        setLoading(false);
       }
     } catch (error) {
       console.error('Profile fetch error:', error);
-    } finally {
-      // Only set loading to false if we are out of retries or succeeded
-      if (retries === 0 || user) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   };
 
