@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { UserRole } from '../types';
@@ -16,8 +16,15 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState(''); // Only for registration
 
-  const { login, signUp, loginWithGoogle } = useAuth();
+  const { login, signUp, loginWithGoogle, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
+
+  // Auto-redirect if already logged in
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,8 +39,8 @@ const Login: React.FC = () => {
             throw new Error("Only students can self-register. Staff must be added by Admin.");
         }
         await signUp(email, password, fullName);
-        toast.success('Account Created! Welcome to KVISION.', { id: toastId });
-        navigate('/dashboard');
+        toast.success('Account Created! Please check your email or login.', { id: toastId });
+        setIsRegistering(false); // Switch back to login
       } else {
         // Login Logic
         await login(email, password, selectedRole);

@@ -53,8 +53,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 2. Listen for auth changes (Google Redirects come here)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        // Only fetch if we don't have a user, or if the user changed
-        await fetchProfile(session.user);
+        // Only fetch if we don't have a user (prevents double fetch)
+        if (!user) {
+          await fetchProfile(session.user);
+        }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setLoading(false);
@@ -66,7 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchProfile = async (sessionUser: any, retries = 0) => {
     try {
@@ -118,16 +120,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = async (email: string, pass: string, expectedRole: UserRole) => {
-    setLoading(true);
+    // We do NOT set global loading(true) here because that unmounts the Login form 
+    // and can interrupt the process. We let the UI component handle the loading state.
+    
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password: pass,
     });
     
-    if (error) {
-      setLoading(false);
-      throw error;
-    }
+    if (error) throw error;
 
     if (data.user) {
       // Check role strictly for manual logins
@@ -139,16 +140,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (profile && profile.role !== expectedRole) {
         await supabase.auth.signOut();
-        setLoading(false);
         throw new Error(`Access Denied: You are not authorized as a ${expectedRole}`);
       }
       
-      // Let the onAuthStateChange handle the profile fetch
+      // Explicitly wait for profile fetch before resolving
+      // This ensures the user object exists before the page redirects
+      await fetchProfile(data.user);
     }
   };
 
   const signUp = async (email: string, pass: string, name: string) => {
-    setLoading(true);
+    // We do NOT set global loading(true) here.
     const { error } = await supabase.auth.signUp({
       email,
       password: pass,
@@ -158,14 +160,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     });
-    if (error) {
-      setLoading(false);
-      throw error;
-    }
+    if (error) throw error;
     // Auth state change will handle the rest
   };
 
   const loginWithGoogle = async () => {
+    // For Google, we DO need loading because it redirects away
     setLoading(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
