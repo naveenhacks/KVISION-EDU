@@ -91,9 +91,32 @@ export interface ModuleContent {
   iconName?: string; // To map back to Lucide icons if needed
 }
 
+export interface AboutContent {
+  history: string;
+  principalMessage: string;
+  principalName: string;
+  principalImage: string;
+  achievements: string[];
+}
+
+export interface AcademicLevel {
+  id: number;
+  title: string;
+  description: string;
+}
+
+export interface AcademicsContent {
+  tagline: string;
+  subTagline: string;
+  levels: AcademicLevel[];
+  evaluationText: string;
+}
+
 export interface SiteContent {
   hero: HeroContent;
   stats: StatItem[];
   modules: ModuleContent[];
   announcements: Announcement[];
+  about: AboutContent;
+  academics: AcademicsContent;
 }

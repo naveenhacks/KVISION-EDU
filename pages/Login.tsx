@@ -39,7 +39,7 @@ const Login: React.FC = () => {
             throw new Error("Only students can self-register. Staff must be added by Admin.");
         }
         await signUp(email, password, fullName);
-        toast.success('Account Created! Please check your email or login.', { id: toastId });
+        toast.success('Confirmation Email Sent. Please check your inbox.', { id: toastId });
         setIsRegistering(false); // Switch back to login
       } else {
         // Login Logic

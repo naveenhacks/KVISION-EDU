@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { SiteContent, HeroContent, StatItem, ModuleContent, Announcement } from '../types';
+import { SiteContent, HeroContent, StatItem, ModuleContent, Announcement, AboutContent, AcademicsContent } from '../types';
 import { supabase } from '../services/supabase';
 import toast from 'react-hot-toast';
 
@@ -38,7 +38,29 @@ const INITIAL_CONTENT: SiteContent = {
       desc: "Cutting-edge digital classrooms and ATAL Tinkering Labs to ignite curiosity and scientific temper in students."
     }
   ],
-  announcements: []
+  announcements: [],
+  about: {
+    history: "Founded in 1998, KVISION Academy started with a simple mission: to provide education that bridges the gap between traditional values and modern technology. From a humble beginning with just 50 students, we have evolved into a premier tech-integrated institution with over 1500 students and next-generation learning facilities.",
+    principalMessage: "\"At KVISION, we treat education as an operating system update for the human mind. Our goal is to install critical thinking, compile creativity, and execute success.\"",
+    principalName: "- Dr. Robert Anderson, Principal",
+    principalImage: "https://picsum.photos/id/64/200/200",
+    achievements: [
+      "#1 in Regional Robotics",
+      "Best Digital Campus 2023",
+      "100% University Acceptance",
+      "National Coding Champions"
+    ]
+  },
+  academics: {
+    tagline: "Academic Architecture",
+    subTagline: "Comprehensive learning modules for the 21st century.",
+    levels: [
+      { id: 1, title: "Level 1: Primary", description: "Foundational literacy, numeracy, and curiosity-driven exploration through gamified learning methods and interactive play." },
+      { id: 2, title: "Level 2: Middle", description: "Specialized subject introduction, critical thinking algorithms, and collaborative projects to compile social intelligence." },
+      { id: 3, title: "Level 3: High", description: "Advanced placement protocols, career trajectory mapping, and leadership kernel development." }
+    ],
+    evaluationText: "We've deprecated traditional grading. Our system assesses logic, creativity, and application. Real-time data streams are available to guardians via the dashboard."
+  }
 };
 
 interface ContentContextType {
@@ -46,6 +68,9 @@ interface ContentContextType {
   updateHero: (data: Partial<HeroContent>) => void;
   updateStat: (id: number, data: Partial<StatItem>) => void;
   updateModule: (id: number, data: Partial<ModuleContent>) => void;
+  updateAbout: (data: Partial<AboutContent>) => void;
+  updateAcademics: (data: Partial<AcademicsContent>) => void;
+  updateAcademicLevel: (id: number, data: Partial<{ title: string; description: string }>) => void;
   addAnnouncement: (announcement: Announcement) => void;
   deleteAnnouncement: (id: string) => void;
   resetToDefaults: () => void;
@@ -76,7 +101,12 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
         .order('created_at', { ascending: false });
 
       if (configData) {
-        setContent(prev => ({ ...prev, ...configData.value, announcements: noticesData || [] }));
+        // Merge fetched config with default structure to ensure new fields (like about/academics) exist even if DB has old structure
+        setContent(prev => ({ 
+          ...INITIAL_CONTENT, 
+          ...configData.value, 
+          announcements: noticesData || [] 
+        }));
       } else {
         // Init config if missing
         await persistConfig({ ...INITIAL_CONTENT, announcements: [] });
@@ -123,6 +153,31 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   };
 
+  const updateAbout = (data: Partial<AboutContent>) => {
+    setContent(prev => {
+      const updated = { ...prev, about: { ...prev.about, ...data } };
+      persistConfig(updated);
+      return updated;
+    });
+  };
+
+  const updateAcademics = (data: Partial<AcademicsContent>) => {
+    setContent(prev => {
+      const updated = { ...prev, academics: { ...prev.academics, ...data } };
+      persistConfig(updated);
+      return updated;
+    });
+  };
+
+  const updateAcademicLevel = (id: number, data: Partial<{ title: string; description: string }>) => {
+     setContent(prev => {
+      const newLevels = prev.academics.levels.map(l => l.id === id ? { ...l, ...data } : l);
+      const updated = { ...prev, academics: { ...prev.academics, levels: newLevels } };
+      persistConfig(updated);
+      return updated;
+    });
+  }
+
   const addAnnouncement = async (announcement: Announcement) => {
     try {
       const { data, error } = await supabase.from('announcements').insert({
@@ -167,7 +222,18 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   return (
-    <ContentContext.Provider value={{ content, updateHero, updateStat, updateModule, addAnnouncement, deleteAnnouncement, resetToDefaults }}>
+    <ContentContext.Provider value={{ 
+      content, 
+      updateHero, 
+      updateStat, 
+      updateModule, 
+      updateAbout,
+      updateAcademics,
+      updateAcademicLevel,
+      addAnnouncement, 
+      deleteAnnouncement, 
+      resetToDefaults 
+    }}>
       {children}
     </ContentContext.Provider>
   );

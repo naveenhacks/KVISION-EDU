@@ -4,14 +4,39 @@ import { Save, Plus, Trash, RefreshCw, Edit3 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const CMS: React.FC = () => {
-  const { content, updateHero, updateStat, updateModule, addAnnouncement, deleteAnnouncement, resetToDefaults } = useContent();
-  const [activeTab, setActiveTab] = useState<'hero' | 'stats' | 'modules' | 'notices'>('hero');
+  const { 
+    content, 
+    updateHero, 
+    updateStat, 
+    updateModule, 
+    updateAbout,
+    updateAcademics,
+    updateAcademicLevel,
+    addAnnouncement, 
+    deleteAnnouncement, 
+    resetToDefaults 
+  } = useContent();
+  const [activeTab, setActiveTab] = useState<'hero' | 'stats' | 'modules' | 'about' | 'academics' | 'notices'>('hero');
   
   // Local state for new announcement
   const [newNotice, setNewNotice] = useState({ title: '', content: '', type: 'general' as const });
 
   const handleHeroUpdate = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     updateHero({ [e.target.name]: e.target.value });
+  };
+
+  const handleAboutUpdate = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    updateAbout({ [e.target.name]: e.target.value });
+  };
+  
+  const handleAchievementUpdate = (index: number, value: string) => {
+    const newAchievements = [...content.about.achievements];
+    newAchievements[index] = value;
+    updateAbout({ achievements: newAchievements });
+  };
+
+  const handleAcademicsUpdate = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    updateAcademics({ [e.target.name]: e.target.value });
   };
 
   const handleAddNotice = (e: React.FormEvent) => {
@@ -49,12 +74,12 @@ const CMS: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex space-x-1 bg-white/5 p-1 rounded-xl w-full md:w-auto overflow-x-auto">
-        {['hero', 'stats', 'modules', 'notices'].map((tab) => (
+      <div className="flex space-x-1 bg-white/5 p-1 rounded-xl w-full md:w-auto overflow-x-auto custom-scrollbar">
+        {['hero', 'stats', 'modules', 'about', 'academics', 'notices'].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as any)}
-            className={`px-4 py-2 rounded-lg text-sm font-bold capitalize transition-all ${
+            className={`px-4 py-2 rounded-lg text-sm font-bold capitalize transition-all whitespace-nowrap ${
               activeTab === tab ? 'bg-primary text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -214,6 +239,139 @@ const CMS: React.FC = () => {
           </div>
         )}
 
+        {/* ABOUT EDITOR */}
+        {activeTab === 'about' && (
+          <div className="space-y-8">
+            <h3 className="text-xl font-bold text-white border-b border-white/5 pb-4">About Page Content</h3>
+            
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-500 uppercase">History Text</label>
+              <textarea 
+                name="history"
+                rows={6}
+                value={content.about.history}
+                onChange={handleAboutUpdate}
+                className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-gray-300 focus:outline-none focus:border-primary/50"
+              />
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6 bg-white/5 p-6 rounded-xl">
+               <div className="md:col-span-2 text-sm font-bold text-secondary uppercase">Principal's Section</div>
+               <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase">Principal Name</label>
+                  <input 
+                    type="text" 
+                    name="principalName"
+                    value={content.about.principalName}
+                    onChange={handleAboutUpdate}
+                    className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary/50"
+                  />
+               </div>
+               <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase">Image URL</label>
+                  <input 
+                    type="text" 
+                    name="principalImage"
+                    value={content.about.principalImage}
+                    onChange={handleAboutUpdate}
+                    className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary/50"
+                  />
+               </div>
+               <div className="md:col-span-2 space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase">Message Quote</label>
+                  <textarea 
+                    name="principalMessage"
+                    rows={3}
+                    value={content.about.principalMessage}
+                    onChange={handleAboutUpdate}
+                    className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary/50 italic"
+                  />
+               </div>
+            </div>
+
+            <div className="space-y-4">
+               <label className="text-xs font-bold text-gray-500 uppercase">Achievements List</label>
+               {content.about.achievements.map((item, idx) => (
+                 <div key={idx} className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={item}
+                      onChange={(e) => handleAchievementUpdate(idx, e.target.value)}
+                      className="flex-1 bg-black/30 border border-white/10 rounded-lg px-4 py-2 text-gray-300 focus:outline-none focus:border-primary/50"
+                    />
+                 </div>
+               ))}
+            </div>
+          </div>
+        )}
+
+        {/* ACADEMICS EDITOR */}
+        {activeTab === 'academics' && (
+          <div className="space-y-8">
+            <h3 className="text-xl font-bold text-white border-b border-white/5 pb-4">Academics Page Content</h3>
+            
+            <div className="grid md:grid-cols-2 gap-6">
+               <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase">Main Tagline</label>
+                  <input 
+                    type="text" 
+                    name="tagline"
+                    value={content.academics.tagline}
+                    onChange={handleAcademicsUpdate}
+                    className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary/50"
+                  />
+               </div>
+               <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase">Sub Tagline</label>
+                  <input 
+                    type="text" 
+                    name="subTagline"
+                    value={content.academics.subTagline}
+                    onChange={handleAcademicsUpdate}
+                    className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary/50"
+                  />
+               </div>
+            </div>
+
+            <div className="space-y-4">
+              <label className="text-xs font-bold text-secondary uppercase">Academic Levels</label>
+              {content.academics.levels.map((level) => (
+                <div key={level.id} className="p-4 bg-white/5 rounded-xl border border-white/5 grid gap-4">
+                   <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-500">Title (Level {level.id})</label>
+                      <input 
+                        type="text" 
+                        value={level.title}
+                        onChange={(e) => updateAcademicLevel(level.id, { title: e.target.value })}
+                        className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-primary/50"
+                      />
+                   </div>
+                   <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-500">Description</label>
+                      <textarea 
+                        rows={2}
+                        value={level.description}
+                        onChange={(e) => updateAcademicLevel(level.id, { description: e.target.value })}
+                        className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-gray-300 focus:outline-none focus:border-primary/50"
+                      />
+                   </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-500 uppercase">Evaluation Protocols Text</label>
+              <textarea 
+                name="evaluationText"
+                rows={4}
+                value={content.academics.evaluationText}
+                onChange={handleAcademicsUpdate}
+                className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-gray-300 focus:outline-none focus:border-primary/50"
+              />
+            </div>
+          </div>
+        )}
+
         {/* NOTICES EDITOR */}
         {activeTab === 'notices' && (
            <div className="space-y-8">
@@ -257,7 +415,7 @@ const CMS: React.FC = () => {
                           required
                         />
                      </div>
-                     <button type="submit" className="w-full bg-primary hover:bg-primary/80 text-white font-bold py-2 rounded-lg flex items-center justify-center space-x-2 transition-all">
+                     <button type="button" onClick={handleAddNotice} className="w-full bg-primary hover:bg-primary/80 text-white font-bold py-2 rounded-lg flex items-center justify-center space-x-2 transition-all">
                        <Plus size={16} /> <span>Publish Notice</span>
                      </button>
                   </form>
